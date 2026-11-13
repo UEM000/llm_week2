@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kestrel"
+version = "0.1.0"
+description = "Домашнее задание «Kestrel»: GQA + YaRN + MoE + AdamW/Muon (курс «Обучение LLM»)"
+requires-python = ">=3.10"
+# torch намеренно без точной версии: в Colab он уже предустановлен
+dependencies = [
+    "torch>=2.3",
+    "numpy",
+    "pyyaml",
+    "huggingface_hub",
+    "tokenizers",
+    "matplotlib",
+    "tqdm",
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+include = ["kestrel*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "slow: долгие тесты (переобучение tiny-модели на CPU); пропускаются через -m \"not slow\"",
+]

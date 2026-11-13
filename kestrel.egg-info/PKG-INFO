@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: kestrel
+Version: 0.1.0
+Summary: Домашнее задание «Kestrel»: GQA + YaRN + MoE + AdamW/Muon (курс «Обучение LLM»)
+Requires-Python: >=3.10
+Requires-Dist: torch>=2.3
+Requires-Dist: numpy
+Requires-Dist: pyyaml
+Requires-Dist: huggingface_hub
+Requires-Dist: tokenizers
+Requires-Dist: matplotlib
+Requires-Dist: tqdm
+Requires-Dist: pytest

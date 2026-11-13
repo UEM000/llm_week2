@@ -1,0 +1,88 @@
+model:
+  vocab_size: 16384
+  d_model: 256
+  n_layers: 8
+  n_heads: 8
+  n_kv_heads: 2
+  head_dim: 32
+  n_experts: 8
+  top_k: 2
+  d_ff: 256
+  rope_base: 10000.0
+  norm_eps: 1.0e-6
+  init_std: 0.02
+
+yarn:
+  l_train: 512
+  alpha: 1.0
+  beta: 32.0
+
+moe:
+  aux_alpha: 0.01
+
+optim:
+  betas: [0.9, 0.95]
+  eps: 1.0e-8
+  weight_decay: 0.1
+  grad_clip: 1.0
+  muon_momentum: 0.95
+  muon_nesterov: true
+  muon_ns_steps: 5
+
+pretrain:                  # используется только преподавательским ноутбуком
+  seq_len: 512
+  batch_size: 64
+  micro_batch_size: 32     # под RTX 3060 12 ГБ
+  grad_accum: 2            # batch_size = micro_batch_size * grad_accum
+  steps: 1500
+  lr: 2.0e-3
+  warmup_steps: 100
+  decay_frac: 0.2
+  final_lr_frac: 0.1
+  yarn_scale: 1.0
+
+finetune:
+  seq_len: 2048
+  batch_size: 16           # глобальный батч (последовательностей на шаг)
+  micro_batch_size: 4      # помещается в T4 16 ГБ
+  grad_accum: 4            # batch_size = micro_batch_size * grad_accum
+  steps: 300
+  lr: 1.0e-3
+  warmup_steps: 30
+  decay_frac: 0.3
+  final_lr_frac: 0.1
+  yarn_scale: 4.0
+  reset_optimizer_state: true
+  ckpt_every: 100          # прогоны короткие, сохраняем чаще
+
+seeds:
+  tests: 0
+  init: 1337
+  data_order: 2024
+  passkey_eval: 7
+
+data:
+  hf_repo: "Dropdead072/kestrel-fineweb-edu"
+  revision: "f1eb02cb8af90475e236b867b39fb0a8e5c10c7a"   # commit hash HF-датасета
+
+checkpoints:
+  hf_repo: "Dropdead072/kestrel-22m-checkpoints"   # model-репозиторий
+  revision: "a2727215b6c5df125dd1dff28345607b954e47da"   # commit hash после загрузки
+  files:
+    A: "ckpt_A.pt"
+    M: "ckpt_M.pt"
+    init: "init.pt"
+    logs: "pretrain_logs.json"
+    reference: "reference.json"
+  val_loss_tolerance: 0.01
+  reference_val_loss:      # заполняется из reference.json после претрейна
+    A: 4.011326378476172
+    M: 3.8980190759760376
+
+speed_check:
+  finetune_step_warn_sec: 4.5   # предупреждение, если оптимизаторный шаг (4 микробатча) дольше;
+                                # на RTX 3060 с SDPA ≈ 1.7 с, с явным softmax ≈ 9 с
+
+precision:
+  autocast_dtype: float16    # T4 без нативного bf16
+  optimizer_dtype: float32
