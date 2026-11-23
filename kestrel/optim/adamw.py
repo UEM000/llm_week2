@@ -32,4 +32,47 @@ class AdamW(torch.optim.Optimizer):
         """Один шаг оптимизации. closure -- функция, заново считающая loss и градиенты (необязательна);
         если она передана, шаг возвращает её значение, иначе None.
         """
-        raise NotImplementedError("TODO: AdamW.step")
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+
+        for group in self.param_groups:
+            lr = group["lr"]
+            beta1, beta2 = group["betas"]
+            eps = group["eps"]
+            weight_decay = group["weight_decay"]
+
+            for p in group["params"]:
+                if p.grad is None:
+                    continue
+
+                g = p.grad
+                state = self.state[p]
+                if len(state) == 0:
+                    state["step"] = 0
+                    state["exp_avg"] = torch.zeros_like(p)
+                    state["exp_avg_sq"] = torch.zeros_like(p)
+
+                state["step"] += 1
+
+                step = state["step"]
+                m: torch.Tensor = state["exp_avg"]
+                v: torch.Tensor = state["exp_avg_sq"]
+
+                # new_m = beta1 * m + (1 - beta1) * g = beta1 * m + (1 - beta1) * g +- m = 
+                # = m - (1 - beta) * m + (1 - beta1) * g = m + (1 - beta1) * (g - m) =>
+                #  => m += (1 - beta1) * (g - m)
+                m.lerp_(g, 1 - beta1)
+                v.mul_(beta2).addcmul_(g, g, value=1 - beta2)
+
+                if weight_decay != 0:
+                    p.mul_(1 - lr * weight_decay)
+
+                bc1 = 1 - beta1 ** step
+                bc2 = 1 - beta2 ** step
+        
+                denom = (v.sqrt() / bc2 ** 0.5).add_(eps)
+                p.addcdiv_(m, denom, value=-(lr / bc1))
+
+        return loss
