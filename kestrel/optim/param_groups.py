@@ -12,4 +12,20 @@ def split_params(model: Kestrel) -> dict[str, list[nn.Parameter]]:
     пересекаются и вместе покрывают model.parameters(); если какой-то параметр не попал ни в одну
     группу, бросает ValueError.
     """
-    raise NotImplementedError("TODO: split_params")
+    params_dict = {"matrix": [], "vector_decay": [], "no_decay": []}
+    modules = dict(model.named_modules())
+
+    for name, p in model.named_parameters():
+        parent_name = name.rsplit(".", 1)[0]
+        parent = modules.get(parent_name)
+
+        if isinstance(parent, (RMSNorm, nn.Embedding)):
+            params_dict["no_decay"].append(p)
+        elif name == "lm_head.weight" or parent_name.endswith(".router"):
+            params_dict["vector_decay"].append(p)
+        elif isinstance(parent, nn.Linear):
+            params_dict["matrix"].append(p)
+        else:
+            raise ValueError(f"не классифицировал {name!r}")
+
+    return params_dict
