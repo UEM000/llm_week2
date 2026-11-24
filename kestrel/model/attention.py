@@ -15,7 +15,13 @@ def expand_kv(x: torch.Tensor, n_heads: int) -> torch.Tensor:
     Какая KV-голова достаётся голове запросов h, описано в TECH_REPORT.md, раздел 2.2; приложение A.2.
     Если n_heads не делится на Hkv, бросает ValueError.
     """
-    raise NotImplementedError("TODO: expand_kv")
+    _, Hkv, _, _ = x.shape
+    if Hkv == n_heads:
+        return x
+    if n_heads % Hkv != 0:
+        raise ValueError("Incorrect KV-heads ammoun.")
+    repeats = n_heads // Hkv
+    return torch.repeat_interleave(x, repeats, dim=1)
 
 
 class GQAttention(nn.Module):
@@ -64,4 +70,47 @@ class GQAttention(nn.Module):
         - scale передаётся обязательно (иначе теряется m^2).
         Алгоритм: TECH_REPORT.md, раздел 2.2 и приложение A.2.
         """
-        raise NotImplementedError("TODO: GQAttention.forward")
+        offset = 0 if cache is None else cache.seq_len(layer_idx)
+        B, T, D = x.shape
+
+        q: torch.Tensor = self.q_proj(x)
+        k: torch.Tensor = self.k_proj(x)
+        v: torch.Tensor = self.v_proj(x)
+
+        # [B, T, D] -> [B, T, H, Dh].
+        q = q.view(B, T, self.n_heads, self.head_dim)
+        # [B, T, H_kv, D_h]
+        k = k.view(B, T, self.n_kv_heads, self.head_dim)
+        v = v.view(B, T, self.n_kv_heads, self.head_dim)
+
+        q = self.q_norm(q)
+        k = self.k_norm(k)
+
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+        T_k = offset + T
+        positions = torch.arange(offset, T_k, device=x.device)
+        q = self.rotary(q, positions)
+        k = self.rotary(k, positions)
+
+        if cache is not None: k, v = cache.update(layer_idx, k, v)
+
+        k = expand_kv(k, self.n_heads)
+        v = expand_kv(v, self.n_heads)
+
+        if offset == 0:
+            is_causal = True
+            attn_mask = None
+        else:
+            is_causal = False
+            attn_mask = torch.arange(T_k, device=x.device)[None, :] <= positions[:, None]
+        logits = F.scaled_dot_product_attention(
+            q, k, v, 
+            attn_mask=attn_mask, is_causal=is_causal,
+            scale=self.rotary.mscale ** 2 / math.sqrt(self.head_dim)
+        )
+        logits = logits.transpose(1, 2).contiguous()
+        logits = logits.view(B, T, D)
+        return self.o_proj(logits)

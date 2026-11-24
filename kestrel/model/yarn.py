@@ -13,7 +13,21 @@ def yarn_inv_freq(inv_freq: torch.Tensor, scale: float, l_train: int, alpha: flo
 
     Формулы: TECH_REPORT.md, раздел 2.3; заметки по реализации: приложение A.1.
     """
-    raise NotImplementedError("TODO: yarn_inv_freq")
+    if abs(scale - 1) <= 1e-9:
+        return inv_freq.clone()
+    r = inv_freq * l_train / (2 * math.pi)
+    small_freq_mask = r < alpha
+    middle_freq_mask = (r >= alpha) & (r <= beta)
+
+    new_freq = inv_freq.clone()
+    new_freq[small_freq_mask] = new_freq[small_freq_mask] / scale
+    gammas = (r[middle_freq_mask] - alpha) / (beta - alpha)
+    new_freq[middle_freq_mask] = (
+        (1 -  gammas) * new_freq[middle_freq_mask] / scale + gammas * new_freq[middle_freq_mask]
+    )
+
+    return new_freq
+
 
 
 def yarn_mscale(scale: float) -> float:
@@ -21,4 +35,6 @@ def yarn_mscale(scale: float) -> float:
 
     Формула: TECH_REPORT.md, раздел 2.3; приложение A.1.
     """
-    raise NotImplementedError("TODO: yarn_mscale")
+    if scale <= 1:
+        return 1
+    return 0.1 * math.log(scale) + 1
