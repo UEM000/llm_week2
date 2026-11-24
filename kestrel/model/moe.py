@@ -74,7 +74,11 @@ class MoE(nn.Module):
             if rows is None or cols is None:
                 continue
             out: torch.Tensor = self.experts[e](x[rows])
-            y.index_add_(dim=0, index=rows, source=out * weights[rows, cols, None].to(out.dtype))
+            contribution = (
+                out.to(y.dtype)
+                * weights[rows, cols, None].to(y.dtype)
+            )
+            y.index_add_(dim=0, index=rows, source=contribution)
 
         self.last_load = frac_of_tokens(idx, logits.shape[-1]).detach()
         loss = switch_aux_loss(logits, idx, self.aux_alpha)
